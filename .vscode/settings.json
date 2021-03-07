@@ -1,0 +1,16 @@
+{
+  "python.linting.enabled": true,
+  "python.linting.lintOnSave": true,
+  "python.pythonPath": ".venv/bin/python",
+  "python.venvPath": ".venv",
+  "python.linting.pylintPath": ".venv/bin/pylint",
+  "python.linting.pylintArgs": [
+    "--errors-only",
+    "--generated-members=numpy.* ,torch.* ,cv2.* , cv.*"
+  ],
+  "python.linting.pylintEnabled": true,
+  "python.linting.pylintUseMinimalCheckers": true,
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Path": ".venv/bin/flake8",
+  "python.analysis.useLibraryCodeForTypes": true
+}
