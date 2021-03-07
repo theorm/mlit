@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Generic, Literal, Optional, Tuple, TypeVar
+from typing import Any, Dict, Generic, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar
 
-from onnxruntime.quantization import QuantType
 import torch.nn
-from transformers.configuration_utils import PretrainedConfig
+
+if TYPE_CHECKING:
+    from transformers.configuration_utils import PretrainedConfig
 
 T = TypeVar('T', bound=torch.nn.Module)
 
@@ -29,7 +30,7 @@ class OnnxModelConverterHelper(torch.nn.Module, Generic[T]):
         return self._model
 
     @property
-    def config(self) -> PretrainedConfig:
+    def config(self) -> 'PretrainedConfig':
         return self.model.config  # type: ignore
 
     @property
@@ -73,6 +74,7 @@ class OnnxModelConverterHelper(torch.nn.Module, Generic[T]):
 
     @property
     def onnx_quantize_args(self) -> Dict[str, Any]:
+        from onnxruntime.quantization import QuantType
         return {
             'weight_type': QuantType.QInt8,
             'op_types_to_quantize': ['MatMul']

@@ -1,5 +1,9 @@
 # ML inference tools
 
+## Requirements
+
+For model export `onnx` package is required.
+
 ## Convert to ONNX
 
 Below are some examples:

@@ -1,13 +1,15 @@
 import random
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
-from onnxruntime import InferenceSession
 import torch
-import torch.nn
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.t5.modeling_t5 import T5Stack
 
 from mlit.models.common import InputDescription, OnnxModelConverterHelper
+
+if TYPE_CHECKING:
+    from onnxruntime import InferenceSession
+    import torch.nn
 
 
 class T5EncoderDescription(OnnxModelConverterHelper[T5Stack]):
@@ -77,9 +79,9 @@ class T5EncoderDescription(OnnxModelConverterHelper[T5Stack]):
 
 
 class T5EncoderInferenceSessionWrapper(T5Stack):
-    _onnx_model: InferenceSession
+    _onnx_model: 'InferenceSession'
 
-    def __init__(self, onnx_model: InferenceSession, config):
+    def __init__(self, onnx_model: 'InferenceSession', config):
         super(T5Stack, self).__init__(config)
         self._onnx_model = onnx_model
 

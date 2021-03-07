@@ -1,17 +1,19 @@
 from math import floor
 import random
-from typing import List, Tuple, cast
+from typing import List, TYPE_CHECKING, Tuple, cast
 
-from onnxruntime import InferenceSession
 import torch
-import torch.nn
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.t5.modeling_t5 import T5Stack
 
 from mlit.models.common import InputDescription, OnnxModelConverterHelper
 
+if TYPE_CHECKING:
+    from onnxruntime import InferenceSession
+    import torch.nn
 
-class T5DecoderNoHistoryDescription(OnnxModelConverterHelper[T5Stack]):
+
+class T5DecoderNoHistoryDescription(OnnxModelConverterHelper['T5Stack']):
     '''
     https://github.com/huggingface/transformers/blob/master/src/transformers/models/t5/modeling_t5.py#L836-L850
     '''
@@ -49,7 +51,7 @@ class T5DecoderNoHistoryDescription(OnnxModelConverterHelper[T5Stack]):
 
     _lm_head: torch.nn.Linear
 
-    def __init__(self, encoder: T5Stack, lm_head: torch.nn.Linear):
+    def __init__(self, encoder: 'T5Stack', lm_head: torch.nn.Linear):
         super().__init__(encoder)
         self._lm_head = lm_head
 
@@ -109,7 +111,7 @@ class T5DecoderNoHistoryDescription(OnnxModelConverterHelper[T5Stack]):
 
 
 class T5DecoderNoHistoryInferenceSessionWrapper(T5Stack):
-    def __init__(self, onnx_model: InferenceSession, config):
+    def __init__(self, onnx_model: 'InferenceSession', config):
         super(T5Stack, self).__init__(config)
         self._onnx_model = onnx_model
 
@@ -344,7 +346,7 @@ class T5DecoderHistoryDescription(T5DecoderNoHistoryDescription):
 
 
 class T5DecoderInferenceSessionWrapper(T5Stack):
-    def __init__(self, onnx_model_first_step, onnx_model, config):
+    def __init__(self, onnx_model_first_step: 'InferenceSession', onnx_model: 'InferenceSession', config):
         super(T5Stack, self).__init__(config)
         self._onnx_model = onnx_model
         self._onnx_model_first_step = onnx_model_first_step

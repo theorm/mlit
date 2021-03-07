@@ -1,23 +1,29 @@
 
-from transformers.configuration_utils import PretrainedConfig
-from mlit.models.t5.helpers.model import OnnxT5LMHeadModel, OnnxT5LMHeadModelNoHistory
-from torch.nn.modules.linear import Linear
-from transformers import T5Config
-from transformers.models.t5.modeling_t5 import T5Stack
-from mlit.models.t5.helpers.decoder import T5DecoderFirstStepHistoryDescription, T5DecoderHistoryDescription, T5DecoderNoHistoryDescription
-from mlit.models.t5.helpers.encoder import T5EncoderDescription
-from transformers import T5ForConditionalGeneration
-from mlit.models.common import OnnxModelConverterHelper
-from typing import List, Literal, Optional, Tuple, cast
 import os
+from typing import List, Literal, Optional, TYPE_CHECKING, Tuple, cast
+
 from onnxruntime import InferenceSession
+from transformers import T5Config, T5ForConditionalGeneration
+
+from mlit.models.t5.helpers.decoder import (
+    T5DecoderFirstStepHistoryDescription,
+    T5DecoderHistoryDescription,
+    T5DecoderNoHistoryDescription,
+)
+from mlit.models.t5.helpers.encoder import T5EncoderDescription
+from mlit.models.t5.helpers.model import OnnxT5LMHeadModel, OnnxT5LMHeadModelNoHistory
+
+if TYPE_CHECKING:
+    from transformers.models.t5.modeling_t5 import T5Stack
+    from mlit.models.common import OnnxModelConverterHelper
+    from torch.nn.modules.linear import Linear
 
 
 def load_model(
     name_or_path: str,
     config_name: str = None,
     cache_dir: str = None
-) -> Tuple[List[OnnxModelConverterHelper], T5Config]:
+) -> Tuple[List['OnnxModelConverterHelper'], T5Config]:
 
     model_config: Optional[T5Config] = None
     if config_name is not None:
@@ -39,6 +45,10 @@ def load_model(
     ], config
 
 
+def _as_quantized(path_elements: List[str]) -> List[str]:
+    return path_elements[:-1] + ['quantized'] + path_elements[-1:]
+
+
 def load_inference_model(
     name: str,
     base_dir: str,
@@ -49,17 +59,18 @@ def load_inference_model(
         base_dir, name, 'transformers_config')
     config = T5Config.from_pretrained(config_location)
 
-    if model_type == 'no_history':
+    base_path = [base_dir, name]
+
+    def construct_path(filename: str) -> str:
+        parts = base_path + [filename]
         if quantized:
-            encoder_path = os.path.join(
-                base_dir, name, f'{T5EncoderDescription.subname}.onnx')
-            decoder_path = os.path.join(
-                base_dir, name, f'{T5DecoderNoHistoryDescription.subname}.onnx')
-        else:
-            encoder_path = os.path.join(
-                base_dir, name, 'quantized', f'{T5EncoderDescription.subname}.onnx')
-            decoder_path = os.path.join(
-                base_dir, name, 'quantized', f'{T5DecoderNoHistoryDescription.subname}.onnx')
+            parts = _as_quantized(parts)
+        return os.path.join(*parts)
+
+    if model_type == 'no_history':
+        encoder_path = construct_path(f'{T5EncoderDescription.subname}.onnx')
+        decoder_path = construct_path(
+            f'{T5DecoderNoHistoryDescription.subname}.onnx')
 
         return OnnxT5LMHeadModelNoHistory(
             config,
@@ -67,20 +78,11 @@ def load_inference_model(
             InferenceSession(decoder_path)
         )
     elif model_type == 'history':
-        if quantized:
-            encoder_path = os.path.join(
-                base_dir, name, f'{T5EncoderDescription.subname}.onnx')
-            decoder_first_step_path = os.path.join(
-                base_dir, name, f'{T5DecoderFirstStepHistoryDescription.subname}.onnx')
-            decoder_path = os.path.join(
-                base_dir, name, f'{T5DecoderHistoryDescription.subname}.onnx')
-        else:
-            encoder_path = os.path.join(
-                base_dir, name, 'quantized', f'{T5EncoderDescription.subname}.onnx')
-            decoder_first_step_path = os.path.join(
-                base_dir, name, 'quantized', f'{T5DecoderFirstStepHistoryDescription.subname}.onnx')
-            decoder_path = os.path.join(
-                base_dir, name, 'quantized', f'{T5DecoderHistoryDescription.subname}.onnx')
+        encoder_path = construct_path(f'{T5EncoderDescription.subname}.onnx')
+        decoder_first_step_path = construct_path(
+            f'{T5DecoderFirstStepHistoryDescription.subname}.onnx')
+        decoder_path = construct_path(
+            f'{T5DecoderHistoryDescription.subname}.onnx')
 
         return OnnxT5LMHeadModel(
             config,

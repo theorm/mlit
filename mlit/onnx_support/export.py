@@ -1,19 +1,21 @@
 import logging
 import os
 import os.path
-from typing import Tuple, Union
+from typing import TYPE_CHECKING, Tuple, Union
 
 import torch.onnx
-from transformers import PretrainedConfig
 
 from mlit.models.common import OnnxModelConverterHelper
-from mlit.onnx_support.quantize import quantize_model
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
+
 
 logger = logging.getLogger(__name__)
 
 
 def export_config(
-    config: PretrainedConfig,
+    config: 'PretrainedConfig',
     output_base_dir: str,
     model_name
 ):
@@ -47,6 +49,8 @@ def export_model(
     torch.onnx.export(**args)
 
     if do_quantize:
+        from mlit.onnx_support.quantize import quantize_model
+
         quantized_file = quantize_model(model_helper, output_base_dir)
         return (export_file, quantized_file)
     else:
