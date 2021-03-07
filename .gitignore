@@ -122,3 +122,5 @@ onnx_model
 *.onnx
 
 tmp
+build
+*.egg-info

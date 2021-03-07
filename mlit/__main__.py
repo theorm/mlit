@@ -35,6 +35,9 @@ def to_onnx(args: Namespace):
             args.config_name,
             args.cache_dir
         )
+    else:
+        assert False, f'Model type not supported: {model_type}'
+
     for helper in helpers:
         file_paths = export_model(
             helper,
