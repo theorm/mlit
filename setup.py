@@ -26,8 +26,7 @@ setup_args = dict(
     packages=setuptools.find_packages(),
     install_requires=[
         'transformers[torch]>=4.3.3',
-        'onnxruntime>=1.7.0',
-        'onnx>=1.8.1'
+        'onnxruntime>=1.7.0'
     ],
     zip_safe=False,
     include_package_data=True,
