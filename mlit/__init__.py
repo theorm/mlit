@@ -1,2 +1,2 @@
-__version__ = '0.1.2-pre'
+__version__ = '0.1.2'
 __description__ = 'ML inference tools'

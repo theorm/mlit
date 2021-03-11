@@ -1,6 +1,8 @@
 from argparse import ArgumentParser, Namespace
 from enum import Enum
 import logging
+import sys
+import onnxruntime
 
 from transformers import PreTrainedTokenizerFast, pipeline
 
@@ -8,7 +10,14 @@ from transformers import PreTrainedTokenizerFast, pipeline
 from mlit.models.t5.helpers.loader import load_inference_model, load_model as load_model_t5
 from mlit.onnx_support.export import export_config, export_model
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.setLevel(logging.WARN)
+
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.WARN)
+sh.setFormatter(logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(message)s'))
+logger.addHandler(sh)
 
 
 class Task(Enum):
@@ -53,12 +62,19 @@ def to_onnx(args: Namespace):
 def inference(args: Namespace):
     model_type = ModelType(args.model_type)
     if model_type == ModelType.T5:
+        # inference_options = onnxruntime.SessionOptions()
+        # inference_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        # inference_options.enable_profiling = True
+        logger.info('Loading inference model')
         model = load_inference_model(
             args.model_name,
             args.base_dir,
             args.model_subtype,
-            args.quantized
+            args.quantized,
+            # options=inference_options
         )
+        logger.info('Loaded inference model')
+
         # TODO: temporary
         tokenizer = PreTrainedTokenizerFast.from_pretrained(
             args.tokenizer_name or args.model_name)
@@ -68,7 +84,9 @@ def inference(args: Namespace):
             model=model,
             tokenizer=tokenizer
         )
-        result = pl(args.model_input, use_cache=True)
+        logger.info('Started generation pipeline')
+        result = pl(args.model_input, use_cache=True, max_length=50)
+        logger.info('Finished generation pipeline')
         print(result)
 
 
@@ -125,9 +143,16 @@ def get_parser() -> ArgumentParser:
         str(Task.INFERENCE), help='inference help')
     get_subparser_inference(subparser)
 
+    parser.add_argument('--verbose', dest='is_verbose', required=False,
+                        default=False, action='store_true',
+                        help='Enable verbose logging')
+
     return parser
 
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
+    if args.is_verbose:
+        logger.setLevel(logging.INFO)
+        sh.setLevel(logging.INFO)
     args.func(args)

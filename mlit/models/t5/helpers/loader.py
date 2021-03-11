@@ -1,8 +1,8 @@
 
 import os
 from typing import List, Literal, Optional, TYPE_CHECKING, Tuple, cast
-
-from onnxruntime import InferenceSession
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from onnxruntime import InferenceSession, SessionOptions
 from transformers import T5Config, T5ForConditionalGeneration
 
 from mlit.models.t5.helpers.decoder import (
@@ -53,7 +53,9 @@ def load_inference_model(
     name: str,
     base_dir: str,
     model_type: Literal['no_history', 'history'],
-    quantized: bool
+    quantized: bool,
+    use_threading: bool = True,
+    options: Optional[SessionOptions] = None
 ) -> T5ForConditionalGeneration:
     config_location = os.path.join(
         base_dir, name, 'transformers_config')
@@ -72,11 +74,15 @@ def load_inference_model(
         decoder_path = construct_path(
             f'{T5DecoderNoHistoryDescription.subname}.onnx')
 
-        return OnnxT5LMHeadModelNoHistory(
-            config,
-            InferenceSession(encoder_path),
-            InferenceSession(decoder_path)
-        )
+        klass = OnnxT5LMHeadModelNoHistory
+        klass_config = config
+        klass_session_paths = [encoder_path, decoder_path]
+
+        # return OnnxT5LMHeadModelNoHistory(
+        #     config,
+        #     InferenceSession(encoder_path),
+        #     InferenceSession(decoder_path)
+        # )
     elif model_type == 'history':
         encoder_path = construct_path(f'{T5EncoderDescription.subname}.onnx')
         decoder_first_step_path = construct_path(
@@ -84,9 +90,30 @@ def load_inference_model(
         decoder_path = construct_path(
             f'{T5DecoderHistoryDescription.subname}.onnx')
 
-        return OnnxT5LMHeadModel(
-            config,
-            InferenceSession(encoder_path),
-            InferenceSession(decoder_first_step_path),
-            InferenceSession(decoder_path)
-        )
+        klass = OnnxT5LMHeadModel
+        klass_config = config
+        klass_session_paths = [encoder_path,
+                               decoder_first_step_path, decoder_path]
+
+        # return OnnxT5LMHeadModel(
+        #     config,
+        #     InferenceSession(encoder_path),
+        #     InferenceSession(decoder_first_step_path),
+        #     InferenceSession(decoder_path)
+        # )
+    else:
+        raise Exception(f'Unknown model type: {model_type}')
+
+    if use_threading:
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for idx, path in enumerate(klass_session_paths):
+                futures.append(executor.submit(
+                    lambda p: (idx, InferenceSession(p, options)), p=path))
+            sessions = [future.result() for future in as_completed(futures)]
+            sessions = sorted(sessions, key=lambda s: s[0])
+            sessions = [s[1] for s in sessions]
+    else:
+        sessions = [InferenceSession(p, options) for p in klass_session_paths]
+
+    return klass(klass_config, *sessions)
