@@ -1,5 +1,7 @@
 
 import os
+import io
+import logging
 from typing import List, Literal, Optional, TYPE_CHECKING, Tuple, cast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from onnxruntime import InferenceSession, SessionOptions
@@ -17,6 +19,8 @@ if TYPE_CHECKING:
     from transformers.models.t5.modeling_t5 import T5Stack
     from mlit.models.common import OnnxModelConverterHelper
     from torch.nn.modules.linear import Linear
+
+logger = logging.getLogger(__name__)
 
 
 def load_model(
@@ -55,6 +59,7 @@ def load_inference_model(
     model_type: Literal['no_history', 'history'],
     quantized: bool,
     use_threading: bool = True,
+    use_compressed_files: bool = False,
     options: Optional[SessionOptions] = None
 ) -> T5ForConditionalGeneration:
     config_location = os.path.join(
@@ -63,6 +68,8 @@ def load_inference_model(
 
     base_path = [base_dir, name]
 
+    file_suffix = 'onnx' if not use_compressed_files else 'onnx.zst'
+
     def construct_path(filename: str) -> str:
         parts = base_path + [filename]
         if quantized:
@@ -70,50 +77,68 @@ def load_inference_model(
         return os.path.join(*parts)
 
     if model_type == 'no_history':
-        encoder_path = construct_path(f'{T5EncoderDescription.subname}.onnx')
+        encoder_path = construct_path(
+            f'{T5EncoderDescription.subname}.{file_suffix}')
         decoder_path = construct_path(
-            f'{T5DecoderNoHistoryDescription.subname}.onnx')
+            f'{T5DecoderNoHistoryDescription.subname}.{file_suffix}')
 
         klass = OnnxT5LMHeadModelNoHistory
         klass_config = config
         klass_session_paths = [encoder_path, decoder_path]
 
-        # return OnnxT5LMHeadModelNoHistory(
-        #     config,
-        #     InferenceSession(encoder_path),
-        #     InferenceSession(decoder_path)
-        # )
     elif model_type == 'history':
-        encoder_path = construct_path(f'{T5EncoderDescription.subname}.onnx')
+        encoder_path = construct_path(
+            f'{T5EncoderDescription.subname}.{file_suffix}')
         decoder_first_step_path = construct_path(
-            f'{T5DecoderFirstStepHistoryDescription.subname}.onnx')
+            f'{T5DecoderFirstStepHistoryDescription.subname}.{file_suffix}')
         decoder_path = construct_path(
-            f'{T5DecoderHistoryDescription.subname}.onnx')
+            f'{T5DecoderHistoryDescription.subname}.{file_suffix}')
 
         klass = OnnxT5LMHeadModel
         klass_config = config
         klass_session_paths = [encoder_path,
                                decoder_first_step_path, decoder_path]
 
-        # return OnnxT5LMHeadModel(
-        #     config,
-        #     InferenceSession(encoder_path),
-        #     InferenceSession(decoder_first_step_path),
-        #     InferenceSession(decoder_path)
-        # )
     else:
         raise Exception(f'Unknown model type: {model_type}')
+
+    def _create_session(file_path: str, options: SessionOptions) -> InferenceSession:
+        if use_compressed_files:
+            # import lzma
+            from pyzstd import decompress_stream
+
+            logger.debug(f'Reading compressed model file: {file_path}')
+            with io.open(file_path, 'rb') as ifh:
+                with io.BytesIO() as bo:
+                    decompress_stream(ifh, bo)
+                    model_bytes = bo.getvalue()
+            # with lzma.open(file_path, 'rb') as f:
+            #     model_bytes = f.read()
+            logger.debug(
+                f'Creating session from compressed model file: {file_path}')
+            sess = InferenceSession(model_bytes, options)
+            # Free memory
+            # https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/python/onnxruntime_inference_collection.py#L270
+            sess._model_bytes = None
+            logger.debug(
+                f'Session created from compressed model file: {file_path}')
+            return sess
+        else:
+            logger.debug(f'Creating session from model file: {file_path}')
+            sess = InferenceSession(file_path, options)
+            logger.debug(f'Session created from model file: {file_path}')
+            return sess
 
     if use_threading:
         with ThreadPoolExecutor() as executor:
             futures = []
             for idx, path in enumerate(klass_session_paths):
                 futures.append(executor.submit(
-                    lambda p: (idx, InferenceSession(p, options)), p=path))
+                    lambda p: (idx, _create_session(p, options)), p=path))
             sessions = [future.result() for future in as_completed(futures)]
             sessions = sorted(sessions, key=lambda s: s[0])
             sessions = [s[1] for s in sessions]
     else:
-        sessions = [InferenceSession(p, options) for p in klass_session_paths]
+        sessions = [_create_session(p, options) for p in klass_session_paths]
 
     return klass(klass_config, *sessions)

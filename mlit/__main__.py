@@ -71,6 +71,8 @@ def inference(args: Namespace):
             args.base_dir,
             args.model_subtype,
             args.quantized,
+            use_threading=True,
+            use_compressed_files=args.compressed,
             # options=inference_options
         )
         logger.info('Loaded inference model')
@@ -119,6 +121,9 @@ def get_subparser_inference(parser: ArgumentParser) -> ArgumentParser:
                         choices=['history', 'no_history'], help='Model type')
     parser.add_argument('--quantized', dest='quantized', type=bool, required=False,
                         default=True, help='Quantized or not')
+    parser.add_argument('--compressed', dest='compressed', required=False,
+                        default=False, action='store_true', help='Quantized or not')
+
     parser.add_argument('--tokenizer-name', dest='tokenizer_name', type=str, default=None,
                         required=False, help='Optional tokenizer name (model name by default)')
     parser.add_argument('--model-input', dest='model_input', type=str, required=True,
@@ -147,6 +152,10 @@ def get_parser() -> ArgumentParser:
                         default=False, action='store_true',
                         help='Enable verbose logging')
 
+    parser.add_argument('--debug', dest='is_debug', required=False,
+                        default=False, action='store_true',
+                        help='Enable debug logging')
+
     return parser
 
 
@@ -155,4 +164,7 @@ if __name__ == '__main__':
     if args.is_verbose:
         logger.setLevel(logging.INFO)
         sh.setLevel(logging.INFO)
+    if args.is_debug:
+        logger.setLevel(logging.DEBUG)
+        sh.setLevel(logging.DEBUG)
     args.func(args)
