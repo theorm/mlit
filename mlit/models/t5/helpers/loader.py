@@ -2,7 +2,7 @@
 import os
 import io
 import logging
-from typing import List, Literal, Optional, TYPE_CHECKING, Tuple, cast
+from typing import List, Literal, Optional, TYPE_CHECKING, Tuple, Union, cast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from onnxruntime import InferenceSession, SessionOptions
 from transformers import T5Config, T5ForConditionalGeneration
@@ -142,3 +142,53 @@ def load_inference_model(
         sessions = [_create_session(p, options) for p in klass_session_paths]
 
     return klass(klass_config, *sessions)
+
+
+def load_inference_model_from_files(
+    filenames: Union[Tuple[str, str], Tuple[str, str, str]],
+    transformers_config_path: str,
+    options: Optional[SessionOptions] = None
+) -> T5ForConditionalGeneration:
+    config = T5Config.from_pretrained(transformers_config_path)
+
+    if len(filenames) == 2:
+        klass = OnnxT5LMHeadModelNoHistory
+    elif len(filenames) == 3:
+        klass = OnnxT5LMHeadModel
+    else:
+        raise Exception(f'Unexpected number of filenames: {len(filenames)}')
+
+    def _create_session(file_path: str, options: SessionOptions) -> InferenceSession:
+        if file_path.endswith('.zst'):
+            from pyzstd import decompress_stream
+
+            logger.debug(f'Reading compressed model file: {file_path}')
+            with io.open(file_path, 'rb') as ifh:
+                with io.BytesIO() as bo:
+                    decompress_stream(ifh, bo)
+                    model_bytes = bo.getvalue()
+            logger.debug(
+                f'Creating session from compressed model file: {file_path}')
+            sess = InferenceSession(model_bytes, options)
+            # Free memory
+            # https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/python/onnxruntime_inference_collection.py#L270
+            sess._model_bytes = None
+            logger.debug(
+                f'Session created from compressed model file: {file_path}')
+            return sess
+        else:
+            logger.debug(f'Creating session from model file: {file_path}')
+            sess = InferenceSession(file_path, options)
+            logger.debug(f'Session created from model file: {file_path}')
+            return sess
+
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for idx, path in enumerate(filenames):
+            futures.append(executor.submit(
+                lambda p: (idx, _create_session(p, options)), p=path))
+        sessions = [future.result() for future in as_completed(futures)]
+        sessions = sorted(sessions, key=lambda s: s[0])
+        sessions = [s[1] for s in sessions]
+
+    return klass(config, *sessions)
