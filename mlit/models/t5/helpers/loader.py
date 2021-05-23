@@ -1,24 +1,24 @@
 
-import os
 import io
 import logging
-from typing import List, Literal, Optional, TYPE_CHECKING, Tuple, Union, cast
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from onnxruntime import InferenceSession, SessionOptions
-from transformers import T5Config, T5ForConditionalGeneration
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, cast
 
 from mlit.models.t5.helpers.decoder import (
-    T5DecoderFirstStepHistoryDescription,
-    T5DecoderHistoryDescription,
-    T5DecoderNoHistoryDescription,
-)
+    T5DecoderFirstStepHistoryDescription, T5DecoderHistoryDescription,
+    T5DecoderNoHistoryDescription)
 from mlit.models.t5.helpers.encoder import T5EncoderDescription
-from mlit.models.t5.helpers.model import OnnxT5LMHeadModel, OnnxT5LMHeadModelNoHistory
+from mlit.models.t5.helpers.model import (OnnxT5LMHeadModel,
+                                          OnnxT5LMHeadModelNoHistory)
+from onnxruntime import InferenceSession, SessionOptions
+from transformers import T5Config, T5ForConditionalGeneration
+from typing_extensions import Literal
 
 if TYPE_CHECKING:
-    from transformers.models.t5.modeling_t5 import T5Stack
     from mlit.models.common import OnnxModelConverterHelper
     from torch.nn.modules.linear import Linear
+    from transformers.models.t5.modeling_t5 import T5Stack
 
 logger = logging.getLogger(__name__)
 

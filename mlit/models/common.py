@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Generic, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, Generic, Optional, Tuple, TypeVar
 
 import torch.nn
+from typing_extensions import Literal
 
 if TYPE_CHECKING:
     from transformers.configuration_utils import PretrainedConfig
