@@ -35,7 +35,7 @@ class T5EncoderDescription(OnnxModelConverterHelper[T5Stack]):
         'encoder_attention_mask': None,
         'inputs_embeds': None,
         'head_mask': None,
-        'cross_attn_layer_head_mask': None,
+        # 'cross_attn_layer_head_mask': None,
         'past_key_values': None,
         'use_cache': False,
         'output_attentions': False,
