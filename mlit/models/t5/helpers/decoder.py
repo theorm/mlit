@@ -41,7 +41,7 @@ class T5DecoderNoHistoryDescription(OnnxModelConverterHelper['T5Stack']):
     default_forward_args = {
         'inputs_embeds': None,
         'head_mask': None,
-        'encoder_head_mask': None,
+        'cross_attn_layer_head_mask': None,
         'past_key_values': None,
         'use_cache': False,
         'output_attentions': False,
